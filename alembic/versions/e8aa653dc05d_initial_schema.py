@@ -1,8 +1,8 @@
 """initial schema
 
-Revision ID: ec8998755ac8
+Revision ID: e8aa653dc05d
 Revises: 
-Create Date: 2026-07-14 01:25:18.173330
+Create Date: 2026-07-14 04:56:43.795702
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = 'ec8998755ac8'
+revision: str = 'e8aa653dc05d'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -43,8 +43,9 @@ def upgrade() -> None:
     sa.Column('age', sa.Integer(), nullable=True),
     sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
     sa.Column('email', sa.String(), nullable=False),
-    sa.Column('hashed_password', sa.String(length=20), nullable=False),
-    sa.PrimaryKeyConstraint('id')
+    sa.Column('hashed_password', sa.String(), nullable=False),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('email')
     )
     op.create_table('chat_sessions',
     sa.Column('id', sa.String(), nullable=False),
