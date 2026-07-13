@@ -8,7 +8,6 @@ from app.api import api_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    init_db()
     yield
 
 
