@@ -1,27 +1,29 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
-# from app.api.v1 import auth
+
 from app.core.config import settings
 from app.db.init_db import init_db
+from app.api import api_router 
 
-from app.api.auth import auth
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    yield 
+    yield
+
 
 app = FastAPI(
     title="Backend Application",
     version="0.1.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
-app.include_router(
-    auth.router,
-    prefix="/api/auth",
-    tags=["Auth"]
-)
+# api_router already aggregates every resource router (users, modules,
+# materials, attempts, badges, user-badges, chat-sessions, chat-messages),
+# each with its own prefix/tags — so mounting it once here gives you
+# /api/users, /api/modules, /api/materials, etc.
+app.include_router(api_router, prefix="/api")
+
 
 @app.get("/health")
 def health_check():
