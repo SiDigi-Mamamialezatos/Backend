@@ -1,0 +1,591 @@
+================================================
+FILE: ./tests/test_modules.py
+================================================
+def test_create_module(client):
+    resp = client.post(
+        "/api/modules/",
+        json={"name": "Bencana Alam", "description": "Natural disasters", "order": 1},
+    )
+    assert resp.status_code == 201
+    assert resp.json()["name"] == "Bencana Alam"
+
+
+def test_get_module(client):
+    created = client.post("/api/modules/", json={"name": "Cyber Security"}).json()
+    resp = client.get(f"/api/modules/{created['id']}")
+    assert resp.status_code == 200
+    assert resp.json()["name"] == "Cyber Security"
+
+
+def test_get_module_not_found(client):
+    resp = client.get("/api/modules/does-not-exist")
+    assert resp.status_code == 404
+
+
+def test_list_modules(client):
+    client.post("/api/modules/", json={"name": "Sosial"})
+    resp = client.get("/api/modules/")
+    assert resp.status_code == 200
+    assert isinstance(resp.json(), list)
+    assert len(resp.json()) >= 1
+
+
+def test_update_module(client):
+    created = client.post("/api/modules/", json={"name": "Old Name"}).json()
+    resp = client.patch(f"/api/modules/{created['id']}", json={"name": "New Name"})
+    assert resp.status_code == 200
+    assert resp.json()["name"] == "New Name"
+
+
+def test_delete_module(client):
+    created = client.post("/api/modules/", json={"name": "To Delete"}).json()
+    resp = client.delete(f"/api/modules/{created['id']}")
+    assert resp.status_code == 204
+    assert client.get(f"/api/modules/{created['id']}").status_code == 404
+================================================
+FILE: ./tests/test_attempts.py
+================================================
+import pytest
+
+
+@pytest.fixture()
+def material(client):
+    module = client.post("/api/modules/", json={"name": "Sosial"}).json()
+    return client.post(
+        "/api/materials/", json={"module_id": module["id"], "title": "Bullying"}
+    ).json()
+
+
+def test_create_attempt(client, make_user, material):
+    user, headers = make_user(email="attempt1@example.com")
+    resp = client.post(
+        "/api/attempts/",
+        json={"user_id": user["id"], "material_id": material["id"]},
+        headers=headers,
+    )
+    assert resp.status_code == 201
+    assert resp.json()["is_completed"] is False
+
+
+def test_create_attempt_requires_auth(client, make_user, material):
+    user, _ = make_user(email="attempt2@example.com")
+    resp = client.post(
+        "/api/attempts/", json={"user_id": user["id"], "material_id": material["id"]}
+    )
+    assert resp.status_code == 401
+
+
+def test_create_attempt_for_another_user_forbidden(client, make_user, material):
+    user1, headers1 = make_user(email="attempt3a@example.com")
+    user2, _ = make_user(email="attempt3b@example.com")
+    resp = client.post(
+        "/api/attempts/",
+        json={"user_id": user2["id"], "material_id": material["id"]},
+        headers=headers1,
+    )
+    assert resp.status_code == 403
+
+
+def test_create_attempt_material_not_found(client, make_user):
+    user, headers = make_user(email="attempt4@example.com")
+    resp = client.post(
+        "/api/attempts/",
+        json={"user_id": user["id"], "material_id": "does-not-exist"},
+        headers=headers,
+    )
+    assert resp.status_code == 404
+
+
+def test_mark_attempt_completed(client, make_user, material):
+    user, headers = make_user(email="attempt5@example.com")
+    attempt = client.post(
+        "/api/attempts/",
+        json={"user_id": user["id"], "material_id": material["id"]},
+        headers=headers,
+    ).json()
+    resp = client.post(f"/api/attempts/{attempt['id']}/complete", headers=headers)
+    assert resp.status_code == 200
+    assert resp.json()["is_completed"] is True
+
+
+def test_list_attempts_by_user(client, make_user, material):
+    user, headers = make_user(email="attempt6@example.com")
+    client.post(
+        "/api/attempts/",
+        json={"user_id": user["id"], "material_id": material["id"]},
+        headers=headers,
+    )
+    resp = client.get(f"/api/attempts/user/{user['id']}")
+    assert resp.status_code == 200
+    assert len(resp.json()) == 1
+================================================
+FILE: ./tests/test_user_badges.py
+================================================
+import pytest
+
+
+@pytest.fixture()
+def badge(client):
+    return client.post("/api/badges/", json={"name": "Achiever"}).json()
+
+
+def test_award_badge(client, make_user, badge):
+    user, _ = make_user(email="award@example.com")
+    resp = client.post(
+        "/api/user-badges/", json={"user_id": user["id"], "badge_id": badge["id"]}
+    )
+    assert resp.status_code == 201
+    assert resp.json()["badge_id"] == badge["id"]
+
+
+def test_award_duplicate_badge_fails(client, make_user, badge):
+    user, _ = make_user(email="dupeaward@example.com")
+    client.post("/api/user-badges/", json={"user_id": user["id"], "badge_id": badge["id"]})
+    resp = client.post(
+        "/api/user-badges/", json={"user_id": user["id"], "badge_id": badge["id"]}
+    )
+    assert resp.status_code == 400
+
+
+def test_award_badge_user_not_found(client, badge):
+    resp = client.post(
+        "/api/user-badges/", json={"user_id": "does-not-exist", "badge_id": badge["id"]}
+    )
+    assert resp.status_code == 404
+
+
+def test_list_user_badges(client, make_user, badge):
+    user, _ = make_user(email="listbadges@example.com")
+    client.post("/api/user-badges/", json={"user_id": user["id"], "badge_id": badge["id"]})
+    resp = client.get(f"/api/user-badges/user/{user['id']}")
+    assert resp.status_code == 200
+    assert len(resp.json()) == 1
+
+
+def test_revoke_badge(client, make_user, badge):
+    user, _ = make_user(email="revoke@example.com")
+    awarded = client.post(
+        "/api/user-badges/", json={"user_id": user["id"], "badge_id": badge["id"]}
+    ).json()
+    resp = client.delete(f"/api/user-badges/{awarded['id']}")
+    assert resp.status_code == 204
+================================================
+FILE: ./tests/conftest.py
+================================================
+"""
+Shared pytest fixtures.
+
+Requires a real PostgreSQL test database (Material.questions uses JSONB,
+which SQLite can't compile against). Point TEST_DATABASE_URL at a
+throwaway database — never your dev/prod one, since tables are dropped
+and recreated every test session.
+
+    export TEST_DATABASE_URL="postgresql+psycopg2://user:password@localhost:5432/test_db"
+
+Each test runs inside a DB transaction that's rolled back afterwards, so
+tests never leak state into each other and the DB stays clean between runs.
+"""
+
+import os
+
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, event
+from sqlalchemy.orm import sessionmaker
+
+from app.api.deps import get_db
+from app.db.base import Base
+from main import app
+
+TEST_DATABASE_URL = os.environ.get(
+    "TEST_DATABASE_URL",
+    "postgresql+psycopg://postgres:NebulaScore90MilkyWayEmpathyScalar@localhost:5432/siagaku_dev_test",
+)
+
+engine = create_engine(TEST_DATABASE_URL)
+TestingSessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def create_test_schema():
+    Base.metadata.create_all(bind=engine)
+    yield
+    Base.metadata.drop_all(bind=engine)
+
+
+@pytest.fixture()
+def db_session():
+    """
+    Wraps each test in an outer transaction + a SAVEPOINT. Repos/services
+    freely call session.commit() or session.rollback() (e.g. on
+    IntegrityError) — those only end the SAVEPOINT, which we immediately
+    restart, so the outer transaction (and therefore full test isolation)
+    is untouched. Everything is rolled back at the end of the test.
+    """
+    connection = engine.connect()
+    transaction = connection.begin()
+    session = TestingSessionLocal(bind=connection)
+
+    session.begin_nested()
+
+    @event.listens_for(session, "after_transaction_end")
+    def restart_savepoint(sess, trans):
+        if trans.nested and not trans._parent.nested:
+            sess.expire_all()
+            sess.begin_nested()
+
+    yield session
+
+    session.close()
+    if transaction.is_active:
+        transaction.rollback()
+    connection.close()
+
+
+@pytest.fixture()
+def client(db_session):
+    def _override_get_db():
+        try:
+            yield db_session
+        finally:
+            pass  # db_session fixture owns closing/rollback
+
+    app.dependency_overrides[get_db] = _override_get_db
+    with TestClient(app) as test_client:
+        yield test_client
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture()
+def make_user(client):
+    """Registers a user and returns (user_json, auth_headers)."""
+
+    def _make_user(email: str = "test@example.com", password: str = "supersecret1", name: str = "Test User"):
+        resp = client.post(
+            "/api/users/register",
+            json={"name": name, "email": email, "password": password, "age": 20},
+        )
+        assert resp.status_code == 201, resp.text
+        user = resp.json()
+
+        login_resp = client.post(
+            "/api/users/login",
+            json={"email": email, "password": password},
+        )
+        assert login_resp.status_code == 200, login_resp.text
+        token = login_resp.json()["access_token"]
+
+        return user, {"Authorization": f"Bearer {token}"}
+
+    return _make_user
+================================================
+FILE: ./tests/test_chat_messages.py
+================================================
+import pytest
+
+
+@pytest.fixture()
+def chat_session(client, make_user):
+    user, headers = make_user(email="chatmsg_owner@example.com")
+    session = client.post(
+        "/api/chat-sessions/", json={"user_id": user["id"]}, headers=headers
+    ).json()
+    return session, headers
+
+
+def test_create_chat_message(client, chat_session):
+    session, headers = chat_session
+    resp = client.post(
+        "/api/chat-messages/",
+        json={"chat_session_id": session["id"], "role": "user", "content": "Halo!"},
+        headers=headers,
+    )
+    assert resp.status_code == 201
+    assert resp.json()["content"] == "Halo!"
+
+
+def test_create_chat_message_wrong_owner_forbidden(client, chat_session, make_user):
+    session, _ = chat_session
+    _, other_headers = make_user(email="chatmsg_intruder@example.com")
+    resp = client.post(
+        "/api/chat-messages/",
+        json={"chat_session_id": session["id"], "role": "user", "content": "Hi"},
+        headers=other_headers,
+    )
+    assert resp.status_code == 403
+
+
+def test_create_chat_message_session_not_found(client, make_user):
+    _, headers = make_user(email="chatmsg_nosession@example.com")
+    resp = client.post(
+        "/api/chat-messages/",
+        json={"chat_session_id": "does-not-exist", "role": "user", "content": "Hi"},
+        headers=headers,
+    )
+    assert resp.status_code == 404
+
+
+def test_list_chat_messages_by_session(client, chat_session):
+    session, headers = chat_session
+    client.post(
+        "/api/chat-messages/",
+        json={"chat_session_id": session["id"], "role": "user", "content": "Q"},
+        headers=headers,
+    )
+    client.post(
+        "/api/chat-messages/",
+        json={"chat_session_id": session["id"], "role": "assistant", "content": "A"},
+        headers=headers,
+    )
+    resp = client.get(f"/api/chat-messages/session/{session['id']}", headers=headers)
+    assert resp.status_code == 200
+    assert len(resp.json()) == 2
+================================================
+FILE: ./tests/test_materials.py
+================================================
+import pytest
+
+
+@pytest.fixture()
+def module(client):
+    return client.post("/api/modules/", json={"name": "Bencana Alam"}).json()
+
+
+def test_create_material(client, module):
+    resp = client.post(
+        "/api/materials/",
+        json={
+            "module_id": module["id"],
+            "title": "Gempa Bumi",
+            "narrative": "Ceritanya di sini...",
+            "questions": [
+                {
+                    "question": "Apa yang harus dilakukan saat gempa?",
+                    "choices": [
+                        {"text": "Diam saja", "isCorrect": False, "feedback": "Kurang tepat"},
+                        {"text": "Berlindung di bawah meja", "isCorrect": True, "feedback": "Benar!"},
+                    ],
+                }
+            ],
+        },
+    )
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["title"] == "Gempa Bumi"
+    assert data["questions"][0]["choices"][1]["isCorrect"] is True
+
+
+def test_create_material_module_not_found(client):
+    resp = client.post(
+        "/api/materials/", json={"module_id": "does-not-exist", "title": "Orphan"}
+    )
+    assert resp.status_code == 404
+
+
+def test_list_materials_by_module(client, module):
+    client.post("/api/materials/", json={"module_id": module["id"], "title": "M1"})
+    client.post("/api/materials/", json={"module_id": module["id"], "title": "M2"})
+    resp = client.get(f"/api/materials/module/{module['id']}")
+    assert resp.status_code == 200
+    assert len(resp.json()) == 2
+
+
+def test_update_material(client, module):
+    created = client.post(
+        "/api/materials/", json={"module_id": module["id"], "title": "Old Title"}
+    ).json()
+    resp = client.patch(f"/api/materials/{created['id']}", json={"title": "New Title"})
+    assert resp.status_code == 200
+    assert resp.json()["title"] == "New Title"
+
+
+def test_delete_material(client, module):
+    created = client.post(
+        "/api/materials/", json={"module_id": module["id"], "title": "To Delete"}
+    ).json()
+    resp = client.delete(f"/api/materials/{created['id']}")
+    assert resp.status_code == 204
+================================================
+FILE: ./tests/__init__.py
+================================================
+
+================================================
+FILE: ./tests/test_users.py
+================================================
+def test_register_user(client):
+    resp = client.post(
+        "/api/users/register",
+        json={"name": "Alice", "email": "alice@example.com", "password": "password123", "age": 25},
+    )
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["email"] == "alice@example.com"
+    assert "hashed_password" not in data
+    assert "password" not in data
+
+
+def test_register_duplicate_email_fails(client, make_user):
+    make_user(email="dupe@example.com")
+    resp = client.post(
+        "/api/users/register",
+        json={"name": "Bob", "email": "dupe@example.com", "password": "password123"},
+    )
+    assert resp.status_code == 400
+
+
+def test_login_success(client, make_user):
+    make_user(email="login@example.com", password="correcthorse1")
+    resp = client.post(
+        "/api/users/login",
+        json={"email": "login@example.com", "password": "correcthorse1"},
+    )
+    assert resp.status_code == 200
+    assert "access_token" in resp.json()
+
+
+def test_login_wrong_password_fails(client, make_user):
+    make_user(email="wrongpw@example.com", password="correcthorse1")
+    resp = client.post(
+        "/api/users/login",
+        json={"email": "wrongpw@example.com", "password": "incorrect"},
+    )
+    assert resp.status_code == 401
+
+
+def test_read_current_user(client, make_user):
+    user, headers = make_user(email="me@example.com")
+    resp = client.get("/api/users/me", headers=headers)
+    assert resp.status_code == 200
+    assert resp.json()["id"] == user["id"]
+
+
+def test_read_current_user_requires_auth(client):
+    resp = client.get("/api/users/me")
+    assert resp.status_code == 401
+
+
+def test_get_user_by_id(client, make_user):
+    user, _ = make_user(email="getbyid@example.com")
+    resp = client.get(f"/api/users/{user['id']}")
+    assert resp.status_code == 200
+    assert resp.json()["email"] == "getbyid@example.com"
+
+
+def test_get_user_not_found(client):
+    resp = client.get("/api/users/does-not-exist")
+    assert resp.status_code == 404
+
+
+def test_update_user(client, make_user):
+    user, headers = make_user(email="update@example.com")
+    resp = client.patch(
+        f"/api/users/{user['id']}", json={"name": "Updated Name"}, headers=headers
+    )
+    assert resp.status_code == 200
+    assert resp.json()["name"] == "Updated Name"
+
+
+def test_update_other_user_forbidden(client, make_user):
+    user1, headers1 = make_user(email="owner1@example.com")
+    user2, _ = make_user(email="owner2@example.com")
+    resp = client.patch(
+        f"/api/users/{user2['id']}", json={"name": "Hacked"}, headers=headers1
+    )
+    assert resp.status_code == 403
+
+
+def test_delete_other_user_forbidden(client, make_user):
+    user1, headers1 = make_user(email="owner3@example.com")
+    user2, _ = make_user(email="owner4@example.com")
+    resp = client.delete(f"/api/users/{user2['id']}", headers=headers1)
+    assert resp.status_code == 403
+
+
+def test_delete_user(client, make_user):
+    user, headers = make_user(email="delete@example.com")
+    resp = client.delete(f"/api/users/{user['id']}", headers=headers)
+    assert resp.status_code == 204
+    assert client.get(f"/api/users/{user['id']}").status_code == 404
+================================================
+FILE: ./tests/test_chat_sessions.py
+================================================
+def test_create_chat_session(client, make_user):
+    user, headers = make_user(email="chat1@example.com")
+    resp = client.post("/api/chat-sessions/", json={"user_id": user["id"]}, headers=headers)
+    assert resp.status_code == 201
+    assert resp.json()["user_id"] == user["id"]
+
+
+def test_create_chat_session_requires_auth(client, make_user):
+    user, _ = make_user(email="chat2@example.com")
+    resp = client.post("/api/chat-sessions/", json={"user_id": user["id"]})
+    assert resp.status_code == 401
+
+
+def test_create_chat_session_for_another_user_forbidden(client, make_user):
+    user1, headers1 = make_user(email="chat3a@example.com")
+    user2, _ = make_user(email="chat3b@example.com")
+    resp = client.post(
+        "/api/chat-sessions/", json={"user_id": user2["id"]}, headers=headers1
+    )
+    assert resp.status_code == 403
+
+
+def test_get_own_chat_session(client, make_user):
+    user, headers = make_user(email="chat4@example.com")
+    session = client.post(
+        "/api/chat-sessions/", json={"user_id": user["id"]}, headers=headers
+    ).json()
+    resp = client.get(f"/api/chat-sessions/{session['id']}", headers=headers)
+    assert resp.status_code == 200
+
+
+def test_get_other_users_chat_session_forbidden(client, make_user):
+    user1, headers1 = make_user(email="chat5a@example.com")
+    user2, headers2 = make_user(email="chat5b@example.com")
+    session = client.post(
+        "/api/chat-sessions/", json={"user_id": user1["id"]}, headers=headers1
+    ).json()
+    resp = client.get(f"/api/chat-sessions/{session['id']}", headers=headers2)
+    assert resp.status_code == 403
+
+
+def test_delete_chat_session(client, make_user):
+    user, headers = make_user(email="chat6@example.com")
+    session = client.post(
+        "/api/chat-sessions/", json={"user_id": user["id"]}, headers=headers
+    ).json()
+    resp = client.delete(f"/api/chat-sessions/{session['id']}", headers=headers)
+    assert resp.status_code == 204
+================================================
+FILE: ./tests/test_badges.py
+================================================
+def test_create_badge(client):
+    resp = client.post(
+        "/api/badges/",
+        json={"name": "First Steps", "description": "Complete your first material"},
+    )
+    assert resp.status_code == 201
+    assert resp.json()["name"] == "First Steps"
+
+
+def test_get_badge_not_found(client):
+    assert client.get("/api/badges/does-not-exist").status_code == 404
+
+
+def test_list_badges(client):
+    client.post("/api/badges/", json={"name": "Explorer"})
+    resp = client.get("/api/badges/")
+    assert resp.status_code == 200
+    assert len(resp.json()) >= 1
+
+
+def test_update_and_delete_badge(client):
+    created = client.post("/api/badges/", json={"name": "Temp Badge"}).json()
+
+    resp = client.patch(f"/api/badges/{created['id']}", json={"name": "Renamed Badge"})
+    assert resp.status_code == 200
+    assert resp.json()["name"] == "Renamed Badge"
+
+    resp = client.delete(f"/api/badges/{created['id']}")
+    assert resp.status_code == 204

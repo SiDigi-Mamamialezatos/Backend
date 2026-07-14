@@ -92,3 +92,116 @@ def test_delete_user(client, make_user):
     resp = client.delete(f"/api/users/{user['id']}", headers=headers)
     assert resp.status_code == 204
     assert client.get(f"/api/users/{user['id']}").status_code == 404
+
+# Append these tests to ./tests/test_users.py
+
+# =====================================================================
+# ADDITIONS TO: ./tests/test_users.py
+# =====================================================================
+
+import pytest
+from unittest.mock import MagicMock, patch
+from app.core.config import settings
+import app.api.user_router as user_router
+
+def test_login_returns_expected_payload(client, make_user):
+    """Ensures standard password login returns both tokens and correct token type schema."""
+    make_user(email="login_meta@example.com", password="securepassword123")
+    resp = client.post(
+        "/api/users/login",
+        json={"email": "login_meta@example.com", "password": "securepassword123"},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "access_token" in data
+    assert "refresh_token" in data
+    assert data["token_type"] == "bearer"
+
+
+def test_google_callback_success_new_user(client):
+    """Simulates a successful code exchange with Google for a brand new account registration."""
+    
+    # Mock responses for both AsyncClient calls
+    mock_token_resp = MagicMock()
+    mock_token_resp.status_code = 200
+    mock_token_resp.json.return_value = {"access_token": "mock-google-access-token"}
+
+    mock_user_resp = MagicMock()
+    mock_user_resp.status_code = 200
+    mock_user_resp.json.return_value = {
+        "sub": "google-id-12345",
+        "email": "oauth_new@example.com",
+        "name": "OAuth New User"
+    }
+
+    # Use patch.object on httpx.AsyncClient itself to catch the instantiation inside the route
+    with patch("httpx.AsyncClient.post", return_value=mock_token_resp), \
+         patch("httpx.AsyncClient.get", return_value=mock_user_resp):
+
+        resp = client.get(
+            "/api/users/auth/google/callback", 
+            params={"code": "valid-google-code"},
+            follow_redirects=False
+        )
+    
+    assert resp.status_code == 307
+    target_url = resp.headers["location"]
+    assert settings.FRONTEND_URL in target_url
+    assert "access_token=" in target_url
+    assert "refresh_token=" in target_url
+
+
+def test_google_callback_failed_exchange(client):
+    """Verifies that an invalid or rejected code from Google properly crashes out with a 400."""
+    mock_token_resp = MagicMock()
+    mock_token_resp.status_code = 400
+
+    with patch("httpx.AsyncClient.post", return_value=mock_token_resp):
+        resp = client.get(
+            "/api/users/auth/google/callback", 
+            params={"code": "bad-or-expired-code"}
+        )
+        
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "Google token exchange failed"
+
+def test_refresh_token_rotation(client, make_user):
+    """Verifies that an active refresh token can safely request a brand new access/refresh pair."""
+    make_user(email="refreshtest@example.com", password="password123")
+    login_resp = client.post(
+        "/api/users/login",
+        json={"email": "refreshtest@example.com", "password": "password123"},
+    )
+    raw_refresh_token = login_resp.json()["refresh_token"]
+
+    resp = client.post(
+        "/api/users/refresh",
+        json={"refresh_token": raw_refresh_token}
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "access_token" in data
+    assert "refresh_token" in data
+    assert data["refresh_token"] != raw_refresh_token
+
+
+def test_logout_revokes_token(client, make_user):
+    """Ensures hitting the logout pipeline invalidates the session refresh token row."""
+    make_user(email="logouttest@example.com", password="password123")
+    login_resp = client.post(
+        "/api/users/login",
+        json={"email": "logouttest@example.com", "password": "password123"},
+    )
+    raw_refresh_token = login_resp.json()["refresh_token"]
+
+    logout_resp = client.post(
+        "/api/users/logout",
+        json={"refresh_token": raw_refresh_token}
+    )
+    assert logout_resp.status_code == 200
+
+    retry_refresh = client.post(
+        "/api/users/refresh",
+        json={"refresh_token": raw_refresh_token}
+    )
+    assert retry_refresh.status_code == 401

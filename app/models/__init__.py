@@ -19,6 +19,7 @@ from .attempt import Attempt
 from .badge import Badge
 from .user_badge import UserBadge
 from .chat import ChatSession, ChatMessage, ChatRole
+from .auth import UserOAuth, RefreshToken 
 
 __all__ = [
     "Base",
@@ -32,4 +33,6 @@ __all__ = [
     "ChatSession",
     "ChatMessage",
     "ChatRole",
+    "UserOAuth",
+    "RefreshToken"
 ]
