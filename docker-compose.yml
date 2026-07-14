@@ -15,7 +15,7 @@ services:
     image: postgres:17
     container_name: postgres
     environment:
-      POSTGRES_USER: postgres
+      POSTGRES_USER: siagaku_dev
       POSTGRES_PASSWORD: password
       POSTGRES_DB: mydb
     volumes:

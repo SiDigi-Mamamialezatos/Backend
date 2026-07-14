@@ -23,7 +23,7 @@ def test_login_success(client, make_user):
     make_user(email="login@example.com", password="correcthorse1")
     resp = client.post(
         "/api/users/login",
-        data={"username": "login@example.com", "password": "correcthorse1"},
+        json={"email": "login@example.com", "password": "correcthorse1"},
     )
     assert resp.status_code == 200
     assert "access_token" in resp.json()
@@ -33,7 +33,7 @@ def test_login_wrong_password_fails(client, make_user):
     make_user(email="wrongpw@example.com", password="correcthorse1")
     resp = client.post(
         "/api/users/login",
-        data={"username": "wrongpw@example.com", "password": "incorrect"},
+        json={"email": "wrongpw@example.com", "password": "incorrect"},
     )
     assert resp.status_code == 401
 

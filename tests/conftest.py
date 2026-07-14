@@ -96,7 +96,7 @@ def make_user(client):
 
         login_resp = client.post(
             "/api/users/login",
-            data={"username": email, "password": password},
+            json={"email": email, "password": password},
         )
         assert login_resp.status_code == 200, login_resp.text
         token = login_resp.json()["access_token"]

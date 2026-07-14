@@ -23,6 +23,12 @@ class UserUpdate(BaseModel):
     password: Optional[str] = Field(default=None, min_length=8, max_length=128)
 
 
+class UserLogin(BaseModel):
+    """Request body for login — plain JSON, no OAuth2 form."""
+    email: EmailStr
+    password: str
+
+
 class UserResponse(UserBase):
     """Response body. Never includes hashed_password."""
     model_config = ConfigDict(from_attributes=True)

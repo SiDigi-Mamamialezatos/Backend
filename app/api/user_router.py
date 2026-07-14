@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from .deps import get_db, get_current_user
 from app.models.user import User
-from app.schemas.user import UserCreate, UserUpdate, UserResponse
+from app.schemas.user import UserCreate, UserUpdate, UserResponse, UserLogin
 from app.services.user_service import UserService
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -18,9 +18,8 @@ def register(obj_in: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/login")
-def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    # OAuth2PasswordRequestForm uses `username` — treat it as the email field
-    return UserService(db).login(email=form_data.username, password=form_data.password)
+def login(credentials: UserLogin, db: Session = Depends(get_db)):
+    return UserService(db).login(email=credentials.email, password=credentials.password)
 
 
 @router.get("/me", response_model=UserResponse)
