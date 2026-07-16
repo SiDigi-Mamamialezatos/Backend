@@ -8,8 +8,8 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
 
-    GOOGLE_CLIENT_ID: str
-    GOOGLE_CLIENT_SECRET: str
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: str = ""
     GOOGLE_REDIRECT_URI: str = "http://localhost:8000/users/auth/google/callback"
     FRONTEND_URL: str = "http://localhost:3000"
 
