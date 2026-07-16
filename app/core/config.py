@@ -13,6 +13,14 @@ class Settings(BaseSettings):
     GOOGLE_REDIRECT_URI: str = "http://localhost:8000/users/auth/google/callback"
     FRONTEND_URL: str = "http://localhost:3000"
 
+    # LLM (OpenAI-compatible API e.g. OpenAI, OpenCode, OpenRouter)
+    LLM_API_KEY: str = ""
+    LLM_BASE_URL: str = "https://api.openai.com/v1"
+    LLM_MODEL: str = "gpt-4o-mini"
+    LLM_TEMPERATURE: float = 0.5
+    LLM_MAX_TOKENS: int = 512
+    LLM_HISTORY_LIMIT: int = 8
+
     class Config:
         env_file = ".env"
         extra="ignore"

@@ -19,6 +19,17 @@ class ChatMessageCreate(ChatMessageBase):
     pass
 
 
+class ChatMessageWithBotCreate(BaseModel):
+    """Post a user message to an existing session and ask the bot to reply.
+
+    This lives alongside ChatMessageCreate so plain message persistence still works.
+    """
+
+    chat_session_id: str
+    module_slug: str
+    content: str
+
+
 class ChatMessageResponse(ChatMessageBase):
     model_config = ConfigDict(from_attributes=True)
 
