@@ -54,17 +54,6 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_table('materials',
-    sa.Column('id', sa.String(), nullable=False),
-    sa.Column('module_id', sa.String(), nullable=False),
-    sa.Column('title', sa.String(), nullable=False),
-    sa.Column('narrative', sa.Text(), nullable=True),
-    sa.Column('questions', postgresql.JSONB(astext_type=sa.Text()), nullable=True),
-    sa.Column('order', sa.Integer(), server_default='0', nullable=False),
-    sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
-    sa.ForeignKeyConstraint(['module_id'], ['modules.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
-    )
     op.create_table('user_badges',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('user_id', sa.String(), nullable=False),
