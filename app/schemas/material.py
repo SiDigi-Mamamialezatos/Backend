@@ -18,7 +18,7 @@ class Question(BaseModel):
 class MaterialBase(BaseModel):
     module_id: str
     title: str
-    narrative: Optional[str] = None
+    narrative: Optional[List[str]] = None
     questions: Optional[List[Question]] = None
     order: int = 0
 
@@ -30,7 +30,7 @@ class MaterialCreate(MaterialBase):
 class MaterialUpdate(BaseModel):
     module_id: Optional[str] = None
     title: Optional[str] = None
-    narrative: Optional[str] = None
+    narrative: Optional[List[str]] = None
     questions: Optional[List[Question]] = None
     order: Optional[int] = None
 
