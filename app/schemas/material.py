@@ -15,11 +15,13 @@ class Question(BaseModel):
     choices: List[Choice]
 
 
+from typing import Any, Optional, List
+
 class MaterialBase(BaseModel):
     module_id: str
     title: str
     narrative: Optional[List[str]] = None
-    questions: Optional[List[Question]] = None
+    questions: Optional[List[Any]] = None
     order: int = 0
 
 
